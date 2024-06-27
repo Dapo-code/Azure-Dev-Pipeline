@@ -69,3 +69,12 @@ stages:
         tags: |
           $(tag)
           latest
+# This command deploys to azure kubernetes using the manifests files
+    - task: KubernetesManifest@1
+      inputs:
+        action: 'deploy'
+        connectionType: 'kubernetesServiceConnection'
+        kubernetesServiceConnection: 'Kubernetes-connection'
+        manifests: | 
+           $(Build.SourcesDirectory)/sqlapp/Manifests/app.yml
+           $(Build.SourcesDirectory)/sqlapp/Manifests/service.yml
