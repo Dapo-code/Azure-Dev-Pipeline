@@ -1,0 +1,71 @@
+# Docker
+# Build and push an image to Azure Container Registry
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+
+trigger:
+- main
+
+resources:
+- repo: self
+
+variables:
+  # Container registry service connection established during pipeline creation
+  dockerRegistryServiceConnection: 'b3020420-c1f5-447c-acb1-0da44fc27f2c'
+  imageRepository: 'sqlappdocker'
+  containerRegistry: 'localregistry1000.azurecr.io'
+  dockerfilePath: '$(Build.SourcesDirectory)/sqlapp/Dockerfile'
+  tag: '$(Build.BuildId)'
+
+  # Agent VM image name
+  vmImageName: 'ubuntu-latest'
+
+stages:
+- stage: Build
+  displayName: Build and push stage
+  jobs:
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+# This tasks installs .NET sdk to VM
+    - task: UseDotNet@2
+      inputs:
+        packageType: 'sdk'
+        version: '6.x'
+# This tasks builds the code source for publishing
+    - task: DotNetCoreCLI@2
+      displayName: Build
+      inputs:
+        command: build
+        projects: '**/*.csproj'
+        arguments: '--configuration $(buildConfiguration)'
+# this tasks publishes the built image to $(Build.ArtifactStagingDirectory)
+    - task: DotNetCoreCLI@2
+      inputs:
+        command: publish
+        publishWebProjects: True
+        zipAfterPublish: false
+        arguments: '--configuration $(BuildConfiguration) --output $(Build.ArtifactStagingDirectory)'
+
+# The below command allows you to use a powershell script in your YML file. This script runs on the vm image
+# The script shows the path where all the publish files goes too
+# NOTE: You dont require the script remember to ash(#) it in your code or remove it. its for debugging
+    - pwsh: |       
+       Get-ChildItem -Path $(Build.ArtifactStagingDirectory)\*.* -Recurse -Force | Out-String -Width 180
+      errorActionPreference: continue
+      displayName: 'List content'
+      continueOnError: true
+# The docker@2 tasks comes with the docker task. You just have to add the buildContext so it can take the build from above
+# This tasks takes the builds and pushes an image of the the build published from DotNetCoreCLI@2 to container registry
+    - task: Docker@2 
+      displayName: Build and push an image to container registry
+      inputs:
+        command: buildAndPush
+        buildContext: '$(Build.ArtifactStagingDirectory)/sqlapp'
+        repository: $(imageRepository)
+        dockerfile: $(dockerfilePath)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+          latest
