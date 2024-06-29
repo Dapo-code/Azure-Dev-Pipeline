@@ -38,3 +38,8 @@ steps:
   inputs:
      TargetPath: '$(Build.ArtifactStagingDirectory)' 
      ArtifactName:  'webapp-artifact' 
+#Note another method of publishing an artifact is:
+#  [- publish: '$(Build.ArtifactStagingDirectory)'
+#      displayName: 'Publish build'
+#      artifact: buildartifacts]
+# This would allow the publishing of artifacts to the pipeline

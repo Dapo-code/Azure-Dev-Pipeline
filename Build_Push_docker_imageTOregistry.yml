@@ -78,3 +78,10 @@ stages:
         manifests: | 
            $(Build.SourcesDirectory)/sqlapp/Manifests/app.yml
            $(Build.SourcesDirectory)/sqlapp/Manifests/service.yml
+# This command makes available files that would have been lost once the agent pool closes to
+# the release pipeline. NOTE: delete the kubernetes task above to allow for release
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: '$(Pipeline.Workspace)'
+        artifact: 'sourcefiles'
+        publishLocation: pipeline

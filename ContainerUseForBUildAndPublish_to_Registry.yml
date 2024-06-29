@@ -1,0 +1,77 @@
+# Docker
+# Build and push an image to Azure Container Registry
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+
+trigger:
+- main
+
+resources:
+- repo: self
+
+variables:
+  # Container registry service connection established during pipeline creation
+  dockerRegistryServiceConnection: 'b3020420-c1f5-447c-acb1-0da44fc27f2c'
+  imageRepository: 'sqlappdocker'
+  containerRegistry: 'localregistry1000.azurecr.io'
+  dockerfilePath: '$(Build.SourcesDirectory)/sqlapp/Dockerfile'
+  tag: '$(Build.BuildId)'
+
+  # Agent VM image name
+  vmImageName: 'ubuntu-latest'
+# This document creates two stages, one for building the code base and the second stage for building and pushing an image
+# to the container registry using docker
+stages:
+# This stage runs on the container as indicated by[container: mcr.microsoft.com/dotnet/sdk:6.0]. it uses the ,NET sdk build
+- stage: Build
+  displayName: Build stage
+  jobs:
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: $(vmImageName)
+    container: mcr.microsoft.com/dotnet/sdk:6.0
+    steps:
+    
+    - task: DotNetCoreCLI@2
+      displayName: Build
+      inputs:
+        command: build
+        projects: '**/*.csproj'
+        arguments: '--configuration $(buildConfiguration)'
+    - task: DotNetCoreCLI@2
+      inputs:
+        command: publish
+        publishWebProjects: True
+        zipAfterPublish: false
+        arguments: '--configuration $(BuildConfiguration) --output $(Build.ArtifactStagingDirectory)'
+    
+# This task publishes the artifact to the pipeline    
+    - publish: '$(Build.ArtifactStagingDirectory)'
+      displayName: 'Publish build'
+      artifact: buildartifacts
+# The second stage runs on the vm pool[vmImage: $(vmImageName)] to  build and push the docker image to the 
+# container registry
+- stage: Deploy
+  displayName: Push stage
+  jobs:
+  - job: Deploy
+    displayName: Deploy
+    pool:
+      vmImage: $(vmImageName)
+# This step is crucial as it allows for the downloading of the artifct to the vm pool     
+    steps:
+    - download: current
+      artifact: buildartifacts
+
+# The docker task uses the artifact to build and push the image    
+    - task: Docker@2
+      displayName: Build and push an image to container registry
+      inputs:
+        command: buildAndPush
+        buildContext: '$(Pipeline.Workspace)/buildartifacts/sqlapp'
+        repository: $(imageRepository)
+        dockerfile: $(dockerfilePath)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+          latest
